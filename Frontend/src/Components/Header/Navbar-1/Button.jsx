@@ -271,7 +271,7 @@ const Button = () => {
                           setName(e.target.value)
                           setError('')
                         }}
-                        placeholder="e.g. Ramesh Kumar"
+                        placeholder="e.g. Tipulal Mahto"
                         className="w-full rounded-xl border border-gray-200 px-4 py-3 text-sm outline-none focus:border-green-500"
                       />
                     </div>
