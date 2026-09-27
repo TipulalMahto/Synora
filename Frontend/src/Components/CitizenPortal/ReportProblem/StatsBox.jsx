@@ -3,7 +3,7 @@ import React from 'react'
 const StatsBox = () => {
   return (
     <div className=''>
-        <div className=" ml-15 mr-15 mt-5 mb-25 border mx-auto flex max-w-275 rounded-3xl bg-white px-8 py-6 shadow-sm">
+        <div className=" ml-55 mr-15 mt-5 mb-25 border mx-auto flex max-w-275 rounded-3xl bg-white px-8 py-6 shadow-sm">
 
   {/* Item 1 */}
   <div className="flex flex-1 items-center gap-4 border-r border-slate-200">

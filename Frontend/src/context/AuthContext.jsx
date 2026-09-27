@@ -68,6 +68,15 @@ export function AuthProvider({ children }) {
     }
   }, [])
 
+  const loginWithGoogle = useCallback(async (credential, role) => {
+  const persist = (session) => {
+    setUser(session)
+    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(session)) } catch { /* ignore */ }
+    return session
+  }
+  return persist(await api.googleLogin(credential, role))
+}, [])
+
   const logout = useCallback(() => {
     setUser(null)
     try {
@@ -82,7 +91,7 @@ export function AuthProvider({ children }) {
   }, [])
 
   return (
-    <AuthContext.Provider value={{ user, login, register, logout }}>
+    <AuthContext.Provider value={{ user, login, register, logout, loginWithGoogle}}>
       {children}
     </AuthContext.Provider>
   )

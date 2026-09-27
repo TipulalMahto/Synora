@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react'
+import React, { useEffect, useState, useRef} from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useAuth, DEMO_ACCOUNTS } from '../../../context/AuthContext'
 import { ROLES, ROLE_PATH } from '../../../lib/roles.js'
@@ -14,7 +14,7 @@ const Button = () => {
 
   const DEMO_PASSWORD = 'demo1234'
 
-  const { login, register, user, logout } = useAuth()
+  const { login, register, user, logout, loginWithGoogle } = useAuth()
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
 
@@ -38,16 +38,60 @@ const Button = () => {
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
 
+  const googleBtnRef = useRef(null)
+
+  async function handleGoogleCredential(response) {
+  setBusy(true)
+  setError('')
+  try {
+    const session = await loginWithGoogle(response.credential, role)
+    setIsLoginOpen(false)
+    navigate(redirect || ROLE_PATH[session.role] || '/')
+  } catch (err) {
+    setError(err?.message || 'Google sign-in failed')
+  } finally {
+    setBusy(false)
+  }
+  }
+
+useEffect(() => {
+  if (!isLoginOpen) return
+  let cancelled = false
+
+  function tryRender(attempts = 0) {
+    if (cancelled) return
+    if (window.google?.accounts?.id && googleBtnRef.current) {
+      window.google.accounts.id.initialize({
+        client_id: import.meta.env.VITE_GOOGLE_CLIENT_ID,
+        callback: handleGoogleCredential,
+      })
+      googleBtnRef.current.innerHTML = ''
+      window.google.accounts.id.renderButton(googleBtnRef.current, {
+        theme: 'outline', size: 'large', shape: 'pill', width: 360, text: 'continue_with',
+      })
+    } else if (attempts < 20) {
+      setTimeout(() => tryRender(attempts + 1), 250)
+    }
+  }
+  tryRender()
+
+  return () => { cancelled = true }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+}, [isLoginOpen, role])
+
   // A ProtectedRoute sends visitors here with ?role=<needed>&redirect=<path>
   // when they try to open a portal without being logged in as the right
   // role. Auto-open the login modal (once) so they don't have to hunt for
   // the button themselves — and keep the requested role preselected.
-  useEffect(() => {
-    if (redirect && !user) {
-      setIsLoginOpen(true)
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+useEffect(() => {
+  if (redirect && !user) {
+    setRole(defaultRole)
+    setEmail(ROLE_EMAIL[defaultRole] || ROLE_EMAIL.citizen)
+    setPassword(DEMO_PASSWORD)
+    setIsLoginOpen(true)
+  }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+}, [redirect])
 
   function pickRole(key) {
     setRole(key)
@@ -406,22 +450,7 @@ const Button = () => {
                   </p>
 
                   {/* Google Button - UI only */}
-                  <button
-                    type="button"
-                    className="mt-3 flex w-full items-center justify-between rounded-xl border border-gray-200 bg-white px-4 py-3 shadow-sm transition hover:shadow-md"
-                  >
-                    <div className="flex items-center gap-3">
-                      <span className="text-xl font-bold">G</span>
-
-                      <span className="text-[15px] font-semibold text-gray-800">
-                        Continue with Google
-                      </span>
-                    </div>
-
-                    <span className="text-xl text-gray-400">
-                      →
-                    </span>
-                  </button>
+                  <div ref={googleBtnRef} className="mt-3 flex justify-center" />
 
                   <p className="mt-3 text-center text-[10px] text-blue-500">
                     Role detected from email:

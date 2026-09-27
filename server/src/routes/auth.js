@@ -1,6 +1,9 @@
 import { Router } from 'express'
 import { requireAuth } from '../middleware/auth.js'
-import { registerUser, loginUser, getCurrentUser } from '../controllers/authController.js'
+import { registerUser, loginUser, getCurrentUser, googleAuth } from '../controllers/authController.js'
+
+// ...
+
 
 const router = Router()
 
@@ -12,5 +15,7 @@ router.post('/login', loginUser)
 
 // GET /api/auth/me - Get current session
 router.get('/me', requireAuth, getCurrentUser)
+
+router.post('/google', googleAuth)
 
 export default router

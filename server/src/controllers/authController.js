@@ -3,6 +3,10 @@ import bcrypt from 'bcryptjs'
 import { User } from '../models/User.js'
 import { dbReady } from '../db.js'
 import { jwtSecret } from '../middleware/auth.js'
+import { OAuth2Client } from 'google-auth-library'
+import crypto from 'crypto'
+
+const googleClient = new OAuth2Client(process.env.GOOGLE_CLIENT_ID)
 
 // Pre-configured demo accounts for instant testing
 export const DEMO_ACCOUNTS = {
@@ -189,6 +193,72 @@ export async function loginUser(req, res) {
   } catch (err) {
     console.error('Login error:', err)
     return res.status(500).json({ error: 'server_error', message: err.message })
+  }
+}
+
+/**
+ * Sign in / sign up via Google Identity Services
+ * POST /api/auth/google
+ */
+export async function googleAuth(req, res) {
+  try {
+    const { credential, role = 'citizen' } = req.body || {}
+    if (!credential) {
+      return res.status(400).json({ error: 'missing_credential', message: 'Google credential is required' })
+    }
+
+    // Verifies the ID token's signature + audience — this is the real security check.
+    const ticket = await googleClient.verifyIdToken({
+      idToken: credential,
+      audience: process.env.GOOGLE_CLIENT_ID,
+    })
+    const payload = ticket.getPayload()
+
+    if (!payload?.email_verified) {
+      return res.status(401).json({ error: 'email_not_verified', message: 'Please use a verified Google account' })
+    }
+
+    const cleanEmail = String(payload.email).toLowerCase()
+    const name = payload.name || cleanEmail.split('@')[0]
+
+    if (dbReady()) {
+      let user = await User.findOne({ email: cleanEmail })
+      if (!user) {
+        // New Google sign-up. Password is never used for this account, but the
+        // schema requires one — a random hash keeps it unguessable.
+        user = await User.create({
+          role,
+          name,
+          email: cleanEmail,
+          password: crypto.randomBytes(20).toString('hex'),
+          org: role === 'citizen' ? 'Citizen' : '',
+        })
+      }
+      // Existing user -> always log them into THEIR real role, ignore whatever
+      // role card was selected in the modal (prevents duplicate/mismatched accounts).
+      const token = jwt.sign(
+        { id: user._id, role: user.role, name: user.name, email: user.email, org: user.org },
+        jwtSecret(),
+        { expiresIn: process.env.JWT_EXPIRE || '30d' },
+      )
+      return res.json({ role: user.role, name: user.name, email: user.email, phone: user.phone || '', org: user.org || '', token, demo: false })
+    }
+
+    // DB offline fallback (mirrors loginUser's memory-store pattern)
+    let memUser = memoryUsers.find((u) => u.email === cleanEmail)
+    if (!memUser) {
+      memUser = { role, name, email: cleanEmail, password: '', org: role === 'citizen' ? 'Citizen' : '' }
+      memoryUsers.push(memUser)
+    }
+    const token = jwt.sign(
+      { role: memUser.role, name: memUser.name, email: memUser.email, org: memUser.org },
+      jwtSecret(),
+      { expiresIn: '30d' },
+    )
+    return res.json({ role: memUser.role, email: memUser.email, name: memUser.name, org: memUser.org, token, demo: false })
+  } catch (err) {
+    console.error('Google auth error:', err)
+    return res.status(401).json({ error: 'invalid_google_token', message: 'Could not verify Google sign-in' })
   }
 }
 

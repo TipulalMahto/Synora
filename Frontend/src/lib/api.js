@@ -424,6 +424,13 @@ export const api = {
         }
         throw new Error('offline')
     },
+
+    async googleLogin(credential, role) {
+        if (await probeServer()) {
+            return request('/auth/google', { method: 'POST', body: JSON.stringify({ credential, role }) })
+        }
+        throw new Error('offline')
+    },
 }
 
 function toQueryString(query) {
